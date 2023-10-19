@@ -422,6 +422,7 @@ func (sp *scrapePool) reload(cfg *config.ScrapeConfig) error {
 		interval      = time.Duration(sp.config.ScrapeInterval)
 		timeout       = time.Duration(sp.config.ScrapeTimeout)
 		bodySizeLimit = int64(sp.config.BodySizeLimit)
+		hostHeader    = sp.config.HostHeader
 		sampleLimit   = int(sp.config.SampleLimit)
 		bucketLimit   = int(sp.config.NativeHistogramBucketLimit)
 		labelLimits   = &labelLimits{
@@ -453,7 +454,7 @@ func (sp *scrapePool) reload(cfg *config.ScrapeConfig) error {
 			acceptHeader = scrapeAcceptHeaderWithProtobuf
 		}
 		var (
-			s       = &targetScraper{Target: t, client: sp.client, timeout: timeout, bodySizeLimit: bodySizeLimit, acceptHeader: acceptHeader}
+			s       = &targetScraper{Target: t, client: sp.client, timeout: timeout, bodySizeLimit: bodySizeLimit, acceptHeader: acceptHeader, hostHeader: hostHeader}
 			newLoop = sp.newLoop(scrapeLoopOptions{
 				target:          t,
 				scraper:         s,
@@ -542,6 +543,7 @@ func (sp *scrapePool) sync(targets []*Target) {
 		interval      = time.Duration(sp.config.ScrapeInterval)
 		timeout       = time.Duration(sp.config.ScrapeTimeout)
 		bodySizeLimit = int64(sp.config.BodySizeLimit)
+		hostHeader    = sp.config.HostHeader
 		sampleLimit   = int(sp.config.SampleLimit)
 		bucketLimit   = int(sp.config.NativeHistogramBucketLimit)
 		labelLimits   = &labelLimits{
@@ -569,7 +571,7 @@ func (sp *scrapePool) sync(targets []*Target) {
 			if sp.enableProtobufNegotiation {
 				acceptHeader = scrapeAcceptHeaderWithProtobuf
 			}
-			s := &targetScraper{Target: t, client: sp.client, timeout: timeout, bodySizeLimit: bodySizeLimit, acceptHeader: acceptHeader}
+			s := &targetScraper{Target: t, client: sp.client, timeout: timeout, bodySizeLimit: bodySizeLimit, acceptHeader: acceptHeader, hostHeader: hostHeader}
 			l := sp.newLoop(scrapeLoopOptions{
 				target:                  t,
 				scraper:                 s,
@@ -791,6 +793,7 @@ type targetScraper struct {
 
 	bodySizeLimit int64
 	acceptHeader  string
+	hostHeader    string
 }
 
 var errBodySizeLimit = errors.New("body size limit exceeded")
@@ -812,6 +815,9 @@ func (s *targetScraper) scrape(ctx context.Context, w io.Writer) (string, error)
 		req.Header.Add("Accept-Encoding", "gzip")
 		req.Header.Set("User-Agent", UserAgent)
 		req.Header.Set("X-Prometheus-Scrape-Timeout-Seconds", strconv.FormatFloat(s.timeout.Seconds(), 'f', -1, 64))
+		if s.hostHeader != "" {
+			req.Host = s.hostHeader
+		}
 
 		s.req = req
 	}
